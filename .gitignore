@@ -1,0 +1,12 @@
+# Generated files
+*.pb.go
+*_pb2.py
+*_grpc.py
+*.pb.js
+*.d.ts
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
