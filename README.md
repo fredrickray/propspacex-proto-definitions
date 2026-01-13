@@ -25,7 +25,7 @@ We use semantic versioning for proto definitions:
 ### As Git Submodule
 
 ```bash
-git submodule add https://github.com/fredrickray/proto-definitions proto
+git submodule add https://github.com/fredrickray/propspacex-proto-definitions proto
 ```
 
 ### Updating to Latest
