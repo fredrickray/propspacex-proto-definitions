@@ -15,6 +15,7 @@ service UserService {
   rpc Signup (SignupRequest) returns (SignupResponse);
   rpc VerifyOTP (VerifyOTPRequest) returns (VerifyOTPResponse);
   rpc ResendOTP (ResendOTPRequest) returns (ResendOTPResponse);
+  rpc RefreshToken (RefreshTokenRequest) returns (RefreshTokenResponse);
 
   // Security & Device Management (called by API Gateway)
   rpc ValidateToken (ValidateTokenRequest) returns (ValidateTokenResponse);
@@ -22,6 +23,7 @@ service UserService {
   rpc LogActivity (LogActivityRequest) returns (LogActivityResponse);
   rpc CheckDeviceTrust (CheckDeviceTrustRequest) returns (CheckDeviceTrustResponse);
 }
+
 
 message CreateUserRequest {
   string firstName = 1;
@@ -47,6 +49,16 @@ message SignInResponse {
 message CreateUserResponse {
   bool success = 1;
   string userId = 2;
+}
+
+message RefreshTokenRequest {
+  string refreshToken = 1;
+}
+message RefreshTokenResponse {
+  bool success = 1;
+  string accessToken = 2;
+  string refreshToken = 3;
+  string error = 4;
 }
 
 message GetUserRequest {
