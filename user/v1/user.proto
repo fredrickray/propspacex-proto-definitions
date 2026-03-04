@@ -71,6 +71,7 @@ message GetUserResponse {
   int32 loginCooldown = 11;
   string createdAt = 12;
   string updatedAt = 13;
+  string appRole = 14;
 }
 
 message ListUsersRequest {
