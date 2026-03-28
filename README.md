@@ -31,7 +31,7 @@ git submodule add https://github.com/fredrickray/propspacex-proto-definitions pr
 ### Updating to Latest
 
 ```bash
-
+git submodule update --remote proto
 ```
 
 ## Making Changes
