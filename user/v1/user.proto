@@ -16,6 +16,9 @@ service UserService {
   rpc VerifyOTP (VerifyOTPRequest) returns (VerifyOTPResponse);
   rpc ResendOTP (ResendOTPRequest) returns (ResendOTPResponse);
   rpc RefreshToken (RefreshTokenRequest) returns (RefreshTokenResponse);
+  rpc RequestWeb3Nonce (RequestWeb3NonceRequest) returns (RequestWeb3NonceResponse);
+  rpc VerifyWeb3Signature (VerifyWeb3SignatureRequest) returns (VerifyWeb3SignatureResponse);
+  rpc LinkWeb3Wallet (LinkWeb3WalletRequest) returns (LinkWeb3WalletResponse);
 
   // Security & Device Management (called by API Gateway)
   rpc ValidateToken (ValidateTokenRequest) returns (ValidateTokenResponse);
@@ -58,6 +61,43 @@ message RefreshTokenResponse {
   bool success = 1;
   string accessToken = 2;
   string refreshToken = 3;
+  string error = 4;
+}
+
+message RequestWeb3NonceRequest {
+  string walletAddress = 1;
+}
+
+message RequestWeb3NonceResponse {
+  bool success = 1;
+  string nonce = 2;
+  string message = 3;
+  string error = 4;
+}
+
+message VerifyWeb3SignatureRequest {
+  string walletAddress = 1;
+  string signature = 2;
+  string message = 3;
+}
+
+message VerifyWeb3SignatureResponse {
+  bool success = 1;
+  GetUserResponse user = 2;
+  string error = 3;
+  string accessToken = 4;
+  string refreshToken = 5;
+}
+
+message LinkWeb3WalletRequest {
+  string userId = 1;
+  string walletAddress = 2;
+}
+
+message LinkWeb3WalletResponse {
+  bool success = 1;
+  string message = 2;
+  bool isPrimary = 3;
   string error = 4;
 }
 
