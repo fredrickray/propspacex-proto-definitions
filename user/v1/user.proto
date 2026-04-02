@@ -19,6 +19,8 @@ service UserService {
   rpc RequestWeb3Nonce (RequestWeb3NonceRequest) returns (RequestWeb3NonceResponse);
   rpc VerifyWeb3Signature (VerifyWeb3SignatureRequest) returns (VerifyWeb3SignatureResponse);
   rpc LinkWeb3Wallet (LinkWeb3WalletRequest) returns (LinkWeb3WalletResponse);
+  rpc UnlinkWeb3Wallet (UnlinkWeb3WalletRequest) returns (UnlinkWeb3WalletResponse);
+
 
   // Security & Device Management (called by API Gateway)
   rpc ValidateToken (ValidateTokenRequest) returns (ValidateTokenResponse);
@@ -66,6 +68,7 @@ message RefreshTokenResponse {
 
 message RequestWeb3NonceRequest {
   string walletAddress = 1;
+  string appRole = 2;
 }
 
 message RequestWeb3NonceResponse {
@@ -99,6 +102,17 @@ message LinkWeb3WalletResponse {
   string message = 2;
   bool isPrimary = 3;
   string error = 4;
+}
+
+message UnlinkWeb3WalletRequest {
+  string userId = 1;
+  string walletAddress = 2;
+}
+
+message UnlinkWeb3WalletResponse {
+  bool success = 1;
+  string message = 2;
+  string error = 3;
 }
 
 message GetUserRequest {
