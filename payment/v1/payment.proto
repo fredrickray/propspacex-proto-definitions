@@ -2,228 +2,491 @@ syntax = "proto3";
 
 package payment;
 
-service PaymentService {
-  // Payment Initialization
-  rpc InitializePayment(InitializePaymentRequest) returns (PaymentResponse);
-  rpc VerifyPayment(VerifyPaymentRequest) returns (PaymentResponse);
-  
-  // Payment Management
-  rpc GetPayment(GetPaymentRequest) returns (PaymentResponse);
-  rpc GetUserPayments(GetUserPaymentsRequest) returns (PaymentsResponse);
-  rpc GetPropertyPayments(GetPropertyPaymentsRequest) returns (PaymentsResponse);
-  
-  // Subscriptions
-  rpc CreateSubscription(CreateSubscriptionRequest) returns (SubscriptionResponse);
-  rpc CancelSubscription(CancelSubscriptionRequest) returns (SubscriptionResponse);
-  rpc GetUserSubscriptions(GetUserSubscriptionsRequest) returns (SubscriptionsResponse);
-  
-  // Refunds
-  rpc RequestRefund(RefundRequest) returns (RefundResponse);
-  rpc ProcessRefund(ProcessRefundRequest) returns (RefundResponse);
-  
-  // Transactions
-  rpc GetTransactionHistory(GetTransactionHistoryRequest) returns (TransactionsResponse);
-  
-  // Webhook
-  rpc HandleWebhook(WebhookRequest) returns (WebhookResponse);
+import "google/protobuf/timestamp.proto";
+
+// =========================
+// Enums
+// =========================
+
+enum CurrencyCode {
+  CURRENCY_CODE_UNSPECIFIED = 0;
+  CURRENCY_CODE_NGN = 1;
+  CURRENCY_CODE_USD = 2;
 }
 
-// Common Messages
-message MessageResponse {
-  string message = 1;
-  bool success = 2;
+enum WalletStatus {
+  WALLET_STATUS_UNSPECIFIED = 0;
+  WALLET_STATUS_ACTIVE = 1;
+  WALLET_STATUS_FROZEN = 2;
+  WALLET_STATUS_CLOSED = 3;
 }
 
-// Payment Messages
-message Payment {
-  string id = 1;
-  string userId = 2;
-  string propertyId = 3;
-  string type = 4; // "booking", "purchase", "subscription", "rent"
-  double amount = 5;
-  string currency = 6;
-  string status = 7; // "pending", "success", "failed", "refunded"
-  string paymentMethod = 8;
-  string reference = 9;
-  string transactionId = 10;
-  string gateway = 11; // "paystack", "flutterwave", "stripe"
-  string metadata = 12; // JSON string
-  string createdAt = 13;
-  string updatedAt = 14;
+enum EscrowStatus {
+  ESCROW_STATUS_UNSPECIFIED = 0;
+  ESCROW_STATUS_HELD = 1;
+  ESCROW_STATUS_IN_PROGRESS = 2;
+  ESCROW_STATUS_PENDING_BUYER_RELEASE = 3;
+  ESCROW_STATUS_RELEASED = 4;
+  ESCROW_STATUS_REFUNDED = 5;
+  ESCROW_STATUS_DISPUTED = 6;
+  ESCROW_STATUS_CANCELLED = 7;
 }
 
-message InitializePaymentRequest {
-  string userId = 1;
-  string propertyId = 2;
-  string type = 3;
-  double amount = 4;
-  string currency = 5;
+enum DisputeStatus {
+  DISPUTE_STATUS_UNSPECIFIED = 0;
+  DISPUTE_STATUS_OPEN = 1;
+  DISPUTE_STATUS_UNDER_REVIEW = 2;
+  DISPUTE_STATUS_RESOLVED_BUYER = 3;
+  DISPUTE_STATUS_RESOLVED_AGENT = 4;
+  DISPUTE_STATUS_SPLIT = 5;
+  DISPUTE_STATUS_REJECTED = 6;
+}
+
+enum WithdrawalStatus {
+  WITHDRAWAL_STATUS_UNSPECIFIED = 0;
+  WITHDRAWAL_STATUS_PENDING = 1;
+  WITHDRAWAL_STATUS_PROCESSING = 2;
+  WITHDRAWAL_STATUS_SUCCESS = 3;
+  WITHDRAWAL_STATUS_FAILED = 4;
+  WITHDRAWAL_STATUS_CANCELLED = 5;
+}
+
+enum ActorRole {
+  ACTOR_ROLE_UNSPECIFIED = 0;
+  ACTOR_ROLE_BUYER = 1;
+  ACTOR_ROLE_AGENT = 2;
+  ACTOR_ROLE_ADMIN = 3;
+  ACTOR_ROLE_SYSTEM = 4;
+}
+
+enum EscrowEventType {
+  ESCROW_EVENT_TYPE_UNSPECIFIED = 0;
+  ESCROW_EVENT_TYPE_CREATED = 1;
+  ESCROW_EVENT_TYPE_FUNDS_HELD = 2;
+  ESCROW_EVENT_TYPE_MARKED_COMPLETE = 3;
+  ESCROW_EVENT_TYPE_RELEASED = 4;
+  ESCROW_EVENT_TYPE_DISPUTE_OPENED = 5;
+  ESCROW_EVENT_TYPE_DISPUTE_RESOLVED = 6;
+  ESCROW_EVENT_TYPE_REFUNDED = 7;
+  ESCROW_EVENT_TYPE_CANCELLED = 8;
+}
+
+// =========================
+// Shared messages
+// =========================
+
+message PaginationRequest {
+  int32 page = 1;
+  int32 limit = 2;
+}
+
+message PaginationMeta {
+  int32 page = 1;
+  int32 limit = 2;
+  int32 total = 3;
+  int32 total_pages = 4;
+}
+
+message Currency {
+  CurrencyCode code = 1;
+  string name = 2;
+  string symbol = 3;
+}
+
+// =========================
+// Wallet domain
+// =========================
+
+message Wallet {
+  string wallet_id = 1;
+  string user_id = 2;
+  WalletStatus status = 3;
+  Currency currency = 4;
+
+  // money in minor units (kobo/cents)
+  int64 total_balance_minor = 5;
+  int64 available_balance_minor = 6;
+  int64 held_balance_minor = 7;
+
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+message WalletTransaction {
+  string transaction_id = 1;
+  string wallet_id = 2;
+  string user_id = 3;
+
+  // credit/debit in minor unit
+  int64 amount_minor = 4;
+  string direction = 5; // "credit" | "debit"
+  string entry_type = 6; // "topup" | "escrow_hold" | "escrow_release" | "refund" | "withdrawal"
+
+  string reference_type = 7; // "escrow" | "payment" | "withdrawal" | "manual_adjustment"
+  string reference_id = 8;
+  string note = 9;
+
+  google.protobuf.Timestamp created_at = 10;
+}
+
+message Withdrawal {
+  string withdrawal_id = 1;
+  string wallet_id = 2;
+  string user_id = 3;
+  int64 amount_minor = 4;
+  Currency currency = 5;
+  WithdrawalStatus status = 6;
+
+  string bank_code = 7;
+  string account_number_last4 = 8;
+  string account_name = 9;
+  string provider_reference = 10;
+  string failure_reason = 11;
+
+  google.protobuf.Timestamp created_at = 12;
+  google.protobuf.Timestamp updated_at = 13;
+}
+
+message CreateWalletRequest {
+  string user_id = 1;
+  CurrencyCode currency_code = 2;
+}
+
+message CreateWalletResponse {
+  bool success = 1;
+  string message = 2;
+  Wallet wallet = 3;
+}
+
+message GetWalletByUserIdRequest {
+  string user_id = 1;
+}
+
+message GetWalletByIdRequest {
+  string wallet_id = 1;
+}
+
+message GetWalletResponse {
+  bool success = 1;
+  string message = 2;
+  Wallet wallet = 3;
+}
+
+message CreditWalletRequest {
+  string user_id = 1;
+  int64 amount_minor = 2;
+  string reference_type = 3;
+  string reference_id = 4;
+  string note = 5;
+  string idempotency_key = 6;
+}
+
+message DebitWalletRequest {
+  string user_id = 1;
+  int64 amount_minor = 2;
+  string reference_type = 3;
+  string reference_id = 4;
+  string note = 5;
+  string idempotency_key = 6;
+}
+
+message WalletMutationResponse {
+  bool success = 1;
+  string message = 2;
+  Wallet wallet = 3;
+  WalletTransaction transaction = 4;
+}
+
+message ListWalletTransactionsRequest {
+  string user_id = 1;
+  PaginationRequest pagination = 2;
+  string reference_type = 3;
+  string reference_id = 4;
+}
+
+message ListWalletTransactionsResponse {
+  bool success = 1;
+  repeated WalletTransaction transactions = 2;
+  PaginationMeta meta = 3;
+}
+
+message RequestWithdrawalRequest {
+  string user_id = 1;
+  int64 amount_minor = 2;
+  string bank_code = 3;
+  string account_number = 4;
+  string account_name = 5;
+  string idempotency_key = 6;
+}
+
+message RequestWithdrawalResponse {
+  bool success = 1;
+  string message = 2;
+  Withdrawal withdrawal = 3;
+}
+
+message ListWithdrawalsRequest {
+  string user_id = 1;
+  PaginationRequest pagination = 2;
+  WithdrawalStatus status = 3;
+}
+
+message ListWithdrawalsResponse {
+  bool success = 1;
+  repeated Withdrawal withdrawals = 2;
+  PaginationMeta meta = 3;
+}
+
+// =========================
+// Escrow domain
+// =========================
+
+message Escrow {
+  string escrow_id = 1;
+  string deal_ref = 2; // your business/deal id
+  string buyer_user_id = 3;
+  string agent_user_id = 4;
+  string property_id = 5;
+
+  Currency currency = 6;
+  int64 amount_minor = 7;
+  int64 platform_fee_minor = 8;
+  int64 net_to_agent_minor = 9;
+
+  EscrowStatus status = 10;
+
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp funded_at = 12;
+  google.protobuf.Timestamp service_marked_complete_at = 13;
+  google.protobuf.Timestamp released_at = 14;
+  google.protobuf.Timestamp refunded_at = 15;
+  google.protobuf.Timestamp cancelled_at = 16;
+  google.protobuf.Timestamp updated_at = 17;
+
+  string metadata_json = 18;
+}
+
+message EscrowEvent {
+  string event_id = 1;
+  string escrow_id = 2;
+  EscrowEventType event_type = 3;
+  ActorRole actor_role = 4;
+  string actor_user_id = 5;
+  string note = 6;
+  string metadata_json = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+
+message EscrowDispute {
+  string dispute_id = 1;
+  string escrow_id = 2;
+  string opened_by_user_id = 3;
+  string reason = 4;
+  string details = 5;
+  DisputeStatus status = 6;
+
+  int64 buyer_award_minor = 7;
+  int64 agent_award_minor = 8;
+  string admin_note = 9;
+
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp resolved_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+message CreateEscrowRequest {
+  string deal_ref = 1;
+  string buyer_user_id = 2;
+  string agent_user_id = 3;
+  string property_id = 4;
+
+  CurrencyCode currency_code = 5;
+  int64 amount_minor = 6;
+  int64 platform_fee_minor = 7;
+
+  // if true, attempt immediate hold from buyer wallet
+  bool hold_funds_now = 8;
+
+  string metadata_json = 9;
+  string idempotency_key = 10;
+}
+
+message EscrowResponse {
+  bool success = 1;
+  string message = 2;
+  Escrow escrow = 3;
+}
+
+message GetEscrowByIdRequest {
+  string escrow_id = 1;
+}
+
+message GetEscrowByDealRefRequest {
+  string deal_ref = 1;
+}
+
+message ListEscrowsByUserRequest {
+  string user_id = 1;
+  ActorRole role = 2; // buyer or agent
+  PaginationRequest pagination = 3;
+  EscrowStatus status = 4; // optional filter; UNSPECIFIED = all
+}
+
+message ListEscrowsResponse {
+  bool success = 1;
+  repeated Escrow escrows = 2;
+  PaginationMeta meta = 3;
+}
+
+message MarkEscrowServiceCompleteRequest {
+  string escrow_id = 1;
+  string agent_user_id = 2;
+  string note = 3;
+  string idempotency_key = 4;
+}
+
+message ReleaseEscrowRequest {
+  string escrow_id = 1;
+  string buyer_user_id = 2;
+  string note = 3;
+  string idempotency_key = 4;
+}
+
+message CancelEscrowRequest {
+  string escrow_id = 1;
+  string cancelled_by_user_id = 2;
+  ActorRole cancelled_by_role = 3;
+  string reason = 4;
+  string idempotency_key = 5;
+}
+
+message OpenEscrowDisputeRequest {
+  string escrow_id = 1;
+  string opened_by_user_id = 2;
+  ActorRole opened_by_role = 3;
+  string reason = 4;
+  string details = 5;
+  string idempotency_key = 6;
+}
+
+message OpenEscrowDisputeResponse {
+  bool success = 1;
+  string message = 2;
+  EscrowDispute dispute = 3;
+  Escrow escrow = 4;
+}
+
+message ResolveEscrowDisputeRequest {
+  string dispute_id = 1;
+  string admin_user_id = 2;
+  DisputeStatus resolution = 3; // buyer/agent/split/rejected
+  int64 buyer_award_minor = 4;
+  int64 agent_award_minor = 5;
+  string admin_note = 6;
+  string idempotency_key = 7;
+}
+
+message ResolveEscrowDisputeResponse {
+  bool success = 1;
+  string message = 2;
+  EscrowDispute dispute = 3;
+  Escrow escrow = 4;
+}
+
+message GetEscrowTimelineRequest {
+  string escrow_id = 1;
+}
+
+message GetEscrowTimelineResponse {
+  bool success = 1;
+  repeated EscrowEvent events = 2;
+}
+
+// =========================
+// Provider/payment intent domain
+// =========================
+
+message CreatePaymentIntentRequest {
+  string buyer_user_id = 1;
+  string escrow_id = 2;
+  int64 amount_minor = 3;
+  CurrencyCode currency_code = 4;
+  string provider = 5; // e.g. "paystack"
   string email = 6;
-  string gateway = 7;
-  string callbackUrl = 8;
-  string metadata = 9;
+  string callback_url = 7;
+  string idempotency_key = 8;
 }
 
-message PaymentResponse {
+message CreatePaymentIntentResponse {
   bool success = 1;
   string message = 2;
-  Payment payment = 3;
-  string authorizationUrl = 4;
-  string accessCode = 5;
+  string payment_id = 3;
+  string provider_reference = 4;
+  string payment_link = 5;
 }
 
-message VerifyPaymentRequest {
-  string reference = 1;
-  string gateway = 2;
+message VerifyPaymentByReferenceRequest {
+  string provider = 1;
+  string reference = 2;
 }
 
-message GetPaymentRequest {
-  string paymentId = 1;
-}
-
-message GetUserPaymentsRequest {
-  string userId = 1;
-  int32 page = 2;
-  int32 limit = 3;
-  string status = 4;
-  string type = 5;
-}
-
-message GetPropertyPaymentsRequest {
-  string propertyId = 1;
-  int32 page = 2;
-  int32 limit = 3;
-}
-
-message PaymentsResponse {
-  bool success = 1;
-  repeated Payment payments = 2;
-  int32 total = 3;
-  int32 page = 4;
-  int32 totalPages = 5;
-}
-
-// Subscription Messages
-message Subscription {
-  string id = 1;
-  string userId = 2;
-  string planId = 3;
-  string planName = 4;
-  double amount = 5;
-  string currency = 6;
-  string status = 7; // "active", "cancelled", "expired"
-  string interval = 8; // "monthly", "yearly"
-  string startDate = 9;
-  string endDate = 10;
-  string nextBillingDate = 11;
-  string subscriptionCode = 12;
-  string createdAt = 13;
-}
-
-message CreateSubscriptionRequest {
-  string userId = 1;
-  string planId = 2;
-  string email = 3;
-  string gateway = 4;
-  string callbackUrl = 5;
-}
-
-message SubscriptionResponse {
+message VerifyPaymentByReferenceResponse {
   bool success = 1;
   string message = 2;
-  Subscription subscription = 3;
-  string authorizationUrl = 4;
+  string payment_id = 3;
+  string provider_reference = 4;
+  string status = 5; // "pending" | "success" | "failed"
+  string escrow_id = 6;
 }
 
-message CancelSubscriptionRequest {
-  string subscriptionId = 1;
-  string userId = 2;
+message HandleProviderWebhookRequest {
+  string provider = 1;
+  string signature = 2;
+  string event = 3;
+  string payload_json = 4;
 }
 
-message GetUserSubscriptionsRequest {
-  string userId = 1;
-  int32 page = 2;
-  int32 limit = 3;
-}
-
-message SubscriptionsResponse {
-  bool success = 1;
-  repeated Subscription subscriptions = 2;
-  int32 total = 3;
-  int32 page = 4;
-  int32 totalPages = 5;
-}
-
-// Refund Messages
-message Refund {
-  string id = 1;
-  string paymentId = 2;
-  string userId = 3;
-  double amount = 4;
-  string currency = 5;
-  string reason = 6;
-  string status = 7; // "pending", "approved", "rejected", "processed"
-  string processedAt = 8;
-  string createdAt = 9;
-}
-
-message RefundRequest {
-  string paymentId = 1;
-  string userId = 2;
-  string reason = 3;
-}
-
-message RefundResponse {
+message HandleProviderWebhookResponse {
   bool success = 1;
   string message = 2;
-  Refund refund = 3;
 }
 
-message ProcessRefundRequest {
-  string refundId = 1;
-  bool approve = 2;
-  string adminNote = 3;
+// =========================
+// Services
+// =========================
+
+service WalletService {
+  rpc CreateWallet(CreateWalletRequest) returns (CreateWalletResponse);
+  rpc GetWalletByUserId(GetWalletByUserIdRequest) returns (GetWalletResponse);
+  rpc GetWalletById(GetWalletByIdRequest) returns (GetWalletResponse);
+
+  rpc CreditWallet(CreditWalletRequest) returns (WalletMutationResponse);
+  rpc DebitWallet(DebitWalletRequest) returns (WalletMutationResponse);
+
+  rpc ListWalletTransactions(ListWalletTransactionsRequest) returns (ListWalletTransactionsResponse);
+
+  rpc RequestWithdrawal(RequestWithdrawalRequest) returns (RequestWithdrawalResponse);
+  rpc ListWithdrawals(ListWithdrawalsRequest) returns (ListWithdrawalsResponse);
 }
 
-// Transaction Messages
-message Transaction {
-  string id = 1;
-  string userId = 2;
-  string type = 3;
-  double amount = 4;
-  string currency = 5;
-  string status = 6;
-  string description = 7;
-  string reference = 8;
-  string createdAt = 9;
+service EscrowService {
+  rpc CreateEscrow(CreateEscrowRequest) returns (EscrowResponse);
+  rpc GetEscrowById(GetEscrowByIdRequest) returns (EscrowResponse);
+  rpc GetEscrowByDealRef(GetEscrowByDealRefRequest) returns (EscrowResponse);
+  rpc ListEscrowsByUser(ListEscrowsByUserRequest) returns (ListEscrowsResponse);
+
+  rpc MarkEscrowServiceComplete(MarkEscrowServiceCompleteRequest) returns (EscrowResponse);
+  rpc ReleaseEscrow(ReleaseEscrowRequest) returns (EscrowResponse);
+  rpc CancelEscrow(CancelEscrowRequest) returns (EscrowResponse);
+
+  rpc OpenEscrowDispute(OpenEscrowDisputeRequest) returns (OpenEscrowDisputeResponse);
+  rpc ResolveEscrowDispute(ResolveEscrowDisputeRequest) returns (ResolveEscrowDisputeResponse);
+
+  rpc GetEscrowTimeline(GetEscrowTimelineRequest) returns (GetEscrowTimelineResponse);
 }
 
-message GetTransactionHistoryRequest {
-  string userId = 1;
-  int32 page = 2;
-  int32 limit = 3;
-  string type = 4;
-  string startDate = 5;
-  string endDate = 6;
-}
-
-message TransactionsResponse {
-  bool success = 1;
-  repeated Transaction transactions = 2;
-  int32 total = 3;
-  int32 page = 4;
-  int32 totalPages = 5;
-}
-
-// Webhook Messages
-message WebhookRequest {
-  string gateway = 1;
-  string event = 2;
-  string payload = 3; // JSON string
-  string signature = 4;
-}
-
-message WebhookResponse {
-  bool success = 1;
-  string message = 2;
+service PaymentService {
+  rpc CreatePaymentIntent(CreatePaymentIntentRequest) returns (CreatePaymentIntentResponse);
+  rpc VerifyPaymentByReference(VerifyPaymentByReferenceRequest) returns (VerifyPaymentByReferenceResponse);
+  rpc HandleProviderWebhook(HandleProviderWebhookRequest) returns (HandleProviderWebhookResponse);
 }
