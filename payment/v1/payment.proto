@@ -59,6 +59,12 @@ enum ActorRole {
   ACTOR_ROLE_SYSTEM = 4;
 }
 
+enum PaymentPurpose {
+  PAYMENT_PURPOSE_UNSPECIFIED = 0;
+  PAYMENT_PURPOSE_ESCROW_FUNDING = 1;
+  PAYMENT_PURPOSE_WALLET_TOPUP = 2;
+}
+
 enum EscrowEventType {
   ESCROW_EVENT_TYPE_UNSPECIFIED = 0;
   ESCROW_EVENT_TYPE_CREATED = 1;
@@ -415,6 +421,7 @@ message CreatePaymentIntentRequest {
   string email = 6;
   string callback_url = 7;
   string idempotency_key = 8;
+  PaymentPurpose purpose = 9; // optional; defaults to escrow funding
 }
 
 message CreatePaymentIntentResponse {
@@ -449,6 +456,38 @@ message HandleProviderWebhookRequest {
 message HandleProviderWebhookResponse {
   bool success = 1;
   string message = 2;
+}
+
+message CreateWalletTopupIntentRequest {
+  string user_id = 1;
+  int64 amount_minor = 2;
+  CurrencyCode currency_code = 3;
+  string provider = 4;
+  string email = 5;
+  string callback_url = 6;
+  string idempotency_key = 7;
+}
+
+message CreateWalletTopupIntentResponse {
+  bool success = 1;
+  string message = 2;
+  string payment_id = 3;
+  string provider_reference = 4;
+  string payment_link = 5;
+}
+
+message VerifyWalletTopupRequest {
+  string provider = 1;
+  string reference = 2;
+}
+
+message VerifyWalletTopupResponse {
+  bool success = 1;
+  string message = 2;
+  string payment_id = 3;
+  string provider_reference = 4;
+  string status = 5;
+  string user_id = 6;
 }
 
 // =========================
@@ -489,4 +528,6 @@ service PaymentService {
   rpc CreatePaymentIntent(CreatePaymentIntentRequest) returns (CreatePaymentIntentResponse);
   rpc VerifyPaymentByReference(VerifyPaymentByReferenceRequest) returns (VerifyPaymentByReferenceResponse);
   rpc HandleProviderWebhook(HandleProviderWebhookRequest) returns (HandleProviderWebhookResponse);
+  rpc CreateWalletTopupIntent(CreateWalletTopupIntentRequest) returns (CreateWalletTopupIntentResponse);
+  rpc VerifyWalletTopup(VerifyWalletTopupRequest) returns (VerifyWalletTopupResponse);
 }
